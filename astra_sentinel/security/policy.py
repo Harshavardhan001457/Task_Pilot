@@ -41,9 +41,9 @@ class PolicyEngine:
             return PolicyOutcome(PolicyDecision.DENY, "Capability is prohibited by policy.", ErrorCode.POLICY_DENIED)
         if not self._config.permission_grants.has_all(requester, meta.required_permissions):
             return PolicyOutcome(PolicyDecision.DENY, "Required permission is not granted.", ErrorCode.PERMISSION_DENIED)
-        if meta.risk_level == RiskLevel.RESTRICTED:
-            return PolicyOutcome(PolicyDecision.DENY, "Restricted operations are prohibited.", ErrorCode.POLICY_DENIED)
-        if meta.risk_level == RiskLevel.DESTRUCTIVE or meta.confirmation_required:
+        if meta.risk_level in {RiskLevel.DESTRUCTIVE, RiskLevel.RESTRICTED}:
+            return PolicyOutcome(PolicyDecision.DENY, "Destructive and restricted operations are prohibited.", ErrorCode.POLICY_DENIED)
+        if meta.confirmation_required:
             return PolicyOutcome(PolicyDecision.CONFIRM, "This operation requires trusted confirmation.", ErrorCode.CONFIRMATION_REQUIRED)
         if meta.risk_level == RiskLevel.MODIFY and not self._config.allow_modify:
             return PolicyOutcome(PolicyDecision.DENY, "Modification operations are disabled by policy.", ErrorCode.POLICY_DENIED)

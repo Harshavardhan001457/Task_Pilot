@@ -1,5 +1,5 @@
 """Capability contract; it deliberately contains no OS access helpers."""
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from astra_sentinel.security.permissions import Permission
@@ -14,6 +14,7 @@ class CapabilityMetadata:
     required_parameters: dict[str, type]
     required_permissions: frozenset[Permission]
     risk_level: RiskLevel
+    optional_parameters: dict[str, type] = field(default_factory=dict)
     confirmation_required: bool = False
     sensitive_parameters: frozenset[str] = frozenset()
 

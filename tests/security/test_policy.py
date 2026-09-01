@@ -4,9 +4,8 @@ from astra_sentinel.capabilities.base import CapabilityMetadata
 from astra_sentinel.capabilities.mock import MockEcho
 from astra_sentinel.config import RuntimeConfig, default_config
 from astra_sentinel.core.models import ResultStatus
-from astra_sentinel.runtime import build_default_runtime
 from astra_sentinel.security.risk import RiskLevel
-from tests.conftest import request
+from tests.conftest import mock_runtime, request
 
 
 def test_unknown_requester_and_missing_permission_are_denied(runtime):
@@ -18,7 +17,7 @@ def test_unknown_requester_and_missing_permission_are_denied(runtime):
 def test_explicit_denial_precedes_confirmation():
     base = default_config()
     config = RuntimeConfig(replace(base.policy, explicitly_denied_capabilities=frozenset({"mock.echo"})), base.enabled_capabilities)
-    dispatcher, _ = build_default_runtime(config)
+    dispatcher, _ = mock_runtime(config)
     assert dispatcher.dispatch(request("mock.echo", {"message": "x"})).status is ResultStatus.DENIED
 
 

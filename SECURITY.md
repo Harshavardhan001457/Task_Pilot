@@ -6,7 +6,7 @@ Sentinel treats action requests and their parameters as untrusted. The registry,
 
 ## Forbidden operations
 
-Phase 1 forbids OS interaction, arbitrary command execution, shell/subprocess execution, dynamic import based on input, reflection-driven dispatch, `eval`, `exec`, `compile`, and unsafe deserialization of untrusted input.
+Arbitrary command execution, shell command construction, dynamic import based on input, reflection-driven dispatch, `eval`, `exec`, `compile`, and unsafe deserialization of untrusted input are forbidden. Phase 2 launches only executables selected from trusted configuration by an argument-vector call, and opens only canonical sandbox paths through the native Windows file association API.
 
 ## Security assumptions
 
@@ -14,7 +14,7 @@ The running Python environment and installed Sentinel code are trusted. The in-m
 
 ## Known limitations
 
-Authentication, authorization administration, persistent/tamper-evident audit storage, UI-mediated confirmation, rate limiting, and real OS capabilities are intentionally out of scope. The mock capabilities are simulations and make no OS security claims.
+Authentication, authorization administration, persistent/tamper-evident audit storage, UI-mediated confirmation, rate limiting, and platform parity are out of scope. Pure-Python path checks cannot eliminate filesystem races or post-check filesystem changes.
 
 ## Reporting vulnerabilities
 

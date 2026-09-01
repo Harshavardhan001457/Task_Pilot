@@ -26,6 +26,8 @@ class ActionRequest:
     requester: str
     timestamp: datetime
 
+    LOCAL_CLI_REQUESTER = "cli"
+
     def __init__(self, *, capability: str, parameters: Mapping[str, Any], requester: str) -> None:
         """Only caller data is accepted; request identity and time are trusted metadata."""
         if not isinstance(capability, str) or not capability or len(capability) > 128:
@@ -47,14 +49,14 @@ class ActionRequest:
 
     @classmethod
     def from_untrusted(cls, payload: Mapping[str, Any]) -> "ActionRequest":
-        """Accept only caller-controlled action fields; metadata is always regenerated."""
+        """Accept only caller-controlled action fields for the local CLI."""
         if not isinstance(payload, Mapping):
             raise RequestValidationError("request must be an object")
-        allowed = {"capability", "parameters", "requester"}
+        allowed = {"capability", "parameters"}
         if set(payload) != allowed:
             raise RequestValidationError("request contains missing or unexpected fields")
         return cls.create(
-            capability=payload["capability"], parameters=payload["parameters"], requester=payload["requester"]
+            capability=payload["capability"], parameters=payload["parameters"], requester=cls.LOCAL_CLI_REQUESTER
         )
 
 
