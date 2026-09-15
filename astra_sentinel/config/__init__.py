@@ -20,6 +20,7 @@ class RuntimeConfig:
     allowed_filesystem_roots: tuple[Path, ...] = ()
     registered_applications: dict[str, "ApplicationConfig"] | None = None
     audit_backend: str = "memory"
+    resource_rules: dict[str, tuple[Path, ...]] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,9 +56,13 @@ def default_config() -> RuntimeConfig:
         if executable.is_file():
             applications[app_id] = ApplicationConfig(executable.resolve(), executable.name)
 
+    allow_modify = bool(workspace)
+
+    resource_rules = {requester: roots for requester in ("cli", "internal")}
     return RuntimeConfig(
-        PolicyConfig(frozenset({"cli", "internal"}), grants, allow_modify=False),
+        PolicyConfig(frozenset({"cli", "internal"}), grants, allow_modify=allow_modify),
         DEFAULT_ENABLED_CAPABILITIES,
         roots,
         applications,
+        resource_rules=resource_rules,
     )

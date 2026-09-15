@@ -17,6 +17,7 @@ class CapabilityMetadata:
     optional_parameters: dict[str, type] = field(default_factory=dict)
     confirmation_required: bool = False
     sensitive_parameters: frozenset[str] = frozenset()
+    rollback_supported: bool = False
 
 
 class Capability(Protocol):
@@ -25,3 +26,5 @@ class Capability(Protocol):
     def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]: ...
     def execute(self, parameters: dict[str, Any]) -> dict[str, Any]: ...
     def verify(self, parameters: dict[str, Any], data: dict[str, Any]) -> bool: ...
+
+    def rollback(self, parameters: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]: ...

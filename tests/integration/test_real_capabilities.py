@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from astra_sentinel import build_default_runtime
 from astra_sentinel.audit.logger import InMemoryAuditLogger
 from astra_sentinel.capabilities.real import CreateDir, FindFile, GetFileInfo, IsAppRunning, OpenApp, OpenFile
 from astra_sentinel.config import ApplicationConfig, RuntimeConfig, default_config
@@ -70,3 +71,67 @@ def test_create_directory_is_sandboxed_and_policy_can_prevent_execution(tmp_path
     denied = real_dispatcher(tmp_path, allow_modify=False)
     assert denied.dispatch(request("filesystem.create_dir", {"path": "must-not-exist"})).status is ResultStatus.DENIED
     assert not (tmp_path / "must-not-exist").exists()
+
+
+def test_default_runtime_allows_sandboxed_file_writes_when_workspace_is_configured(tmp_path, monkeypatch):
+    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
+    config = default_config()
+    assert config.policy.allow_modify is True
+    dispatcher, _ = build_default_runtime(config)
+    assert dispatcher.dispatch(request("filesystem.create_dir", {"path": "nested"})).status is ResultStatus.SUCCESS
+    assert (tmp_path / "nested").is_dir()
+
+
+def test_v2_file_and_application_capabilities_use_registry_and_sandbox(tmp_path):
+    source = tmp_path / "source.txt"
+    source.write_text("hello")
+    executable = tmp_path / "registered-test-app.exe"
+    executable.write_text("test")
+    apps = {"testapp": ApplicationConfig(executable.resolve(), executable.name)}
+    grants = PermissionGrants({
+        "cli": frozenset({
+            Permission.SYSTEM_READ,
+            Permission.APPLICATION_LAUNCH,
+            Permission.FILESYSTEM_READ,
+            Permission.FILESYSTEM_WRITE,
+            Permission.FILESYSTEM_MOVE,
+        })
+    })
+    policy = replace(default_config().policy, permission_grants=grants, allow_modify=True)
+    registry = CapabilityRegistry()
+    from astra_sentinel.capabilities.real import CopyFile, CreateFile, ListRunningApps, MoveFile, RenameFile, GetProcessInfo
+    for capability in (
+        MoveFile((tmp_path,), allow_overwrite=True),
+        CopyFile((tmp_path,), allow_overwrite=True),
+        RenameFile((tmp_path,), allow_overwrite=True),
+        CreateFile((tmp_path,), allow_overwrite=True),
+        ListRunningApps(apps),
+        GetProcessInfo(apps),
+    ):
+        registry.register(capability)
+    dispatcher = Dispatcher(registry, PolicyEngine(policy), InMemoryAuditLogger())
+
+    move_result = dispatcher.dispatch(request("filesystem.move_file", {"source": "source.txt", "destination": "moved.txt"}))
+    assert move_result.status is ResultStatus.SUCCESS
+    assert not source.exists()
+    assert (tmp_path / "moved.txt").exists()
+
+    copy_result = dispatcher.dispatch(request("filesystem.copy_file", {"source": "moved.txt", "destination": "copy.txt"}))
+    assert copy_result.status is ResultStatus.SUCCESS
+    assert (tmp_path / "copy.txt").exists()
+
+    rename_result = dispatcher.dispatch(request("filesystem.rename_file", {"path": "copy.txt", "new_name": "renamed.txt"}))
+    assert rename_result.status is ResultStatus.SUCCESS
+    assert not (tmp_path / "copy.txt").exists()
+    assert (tmp_path / "renamed.txt").exists()
+
+    create_result = dispatcher.dispatch(request("filesystem.create_file", {"path": "fresh.txt"}))
+    assert create_result.status is ResultStatus.SUCCESS
+    assert (tmp_path / "fresh.txt").exists()
+
+    process_result = dispatcher.dispatch(request("application.get_process_info", {"app": "testapp"}))
+    assert process_result.status is ResultStatus.SUCCESS
+    assert process_result.data["app"] == "testapp"
+
+    unknown = dispatcher.dispatch(request("application.get_process_info", {"app": "unknown"}))
+    assert unknown.status is ResultStatus.VALIDATION_ERROR

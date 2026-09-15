@@ -441,3 +441,545 @@ It does not allow:
 ---
 
 This project is designed as a narrow, fail-closed local automation environment: constrained permissions, trust in a small registry, and safe, explicit filesystem access only.
+
+---
+
+## 12. Phase 2 plan upgrade: exact syntax and examples
+
+The latest upgrade adds programmatic and CLI planning support without bypassing the existing security pipeline. The JSON CLI syntax is documented in the Phase 3 section below; the Python API is shown here.
+
+### Import and setup
+
+```python
+from astra_sentinel import (
+    ActionPlan,
+    ActionPlanItem,
+    PlanExecutor,
+    PlanFailurePolicy,
+    build_default_runtime,
+)
+
+# Optional: only where filesystem writes are allowed
+# $env:ASTRA_WORKSPACE = "C:\\path\\to\\workspace"
+
+dispatcher, _ = build_default_runtime()
+executor = PlanExecutor(dispatcher)
+```
+
+### Basic plan: dependency + execution
+
+```python
+plan = ActionPlan(
+    plan_id="plan-demo",
+    description="Create a folder and a file inside it",
+    requester="cli",
+    failure_policy=PlanFailurePolicy.CONTINUE,
+    actions=(
+        ActionPlanItem(
+            action_id="mkdir",
+            capability="filesystem.create_dir",
+            parameters={"path": "demo"},
+        ),
+        ActionPlanItem(
+            action_id="write",
+            capability="filesystem.create_file",
+            parameters={"path": "demo/notes.txt"},
+            depends_on=("mkdir",),
+        ),
+    ),
+)
+
+result = executor.execute(plan)
+print(result.final_status)          # PlanStatus.SUCCESS / PARTIAL_SUCCESS / FAILED
+print(result.summary)              # human-readable plan summary
+print(result.failed_action_ids)    # list of failed action ids
+print(result.skipped_action_ids)   # list of skipped action ids
+```
+
+Example output:
+
+```python
+PlanStatus.SUCCESS
+Plan completed successfully.
+[]
+[]
+```
+
+### STOP behavior
+
+```python
+stop_plan = ActionPlan(
+    plan_id="stop-demo",
+    description="Stop after the first failed action",
+    requester="cli",
+    failure_policy=PlanFailurePolicy.STOP,
+    actions=(
+        ActionPlanItem("a1", "filesystem.create_dir", {"path": "alpha"}),
+        ActionPlanItem("a2", "filesystem.create_dir", {"path": "alpha"}),
+    ),
+)
+
+result = executor.execute(stop_plan)
+print(result.final_status)
+print(result.failed_action_ids)
+print(result.skipped_action_ids)
+```
+
+Example output:
+
+```python
+PlanStatus.FAILED
+['a2']
+['a2']
+```
+
+In STOP mode, the executor stops once an action fails and marks later pending actions as skipped.
+
+### CONTINUE behavior
+
+```python
+continue_plan = ActionPlan(
+    plan_id="continue-demo",
+    description="Keep executing after a failed action",
+    requester="cli",
+    failure_policy=PlanFailurePolicy.CONTINUE,
+    actions=(
+        ActionPlanItem("a1", "filesystem.create_dir", {"path": "alpha"}),
+        ActionPlanItem("a2", "filesystem.create_dir", {"path": "alpha"}),
+        ActionPlanItem("a3", "filesystem.create_dir", {"path": "omega"}),
+    ),
+)
+
+result = executor.execute(continue_plan)
+print(result.final_status)
+print(result.failed_action_ids)
+print(result.skipped_action_ids)
+```
+
+Example output:
+
+```python
+PlanStatus.PARTIAL_SUCCESS
+['a2']
+[]
+```
+
+### Dependency validation
+
+```python
+bad_plan = ActionPlan(
+    plan_id="bad-plan",
+    description="Circular dependency example",
+    requester="cli",
+    failure_policy=PlanFailurePolicy.STOP,
+    actions=(
+        ActionPlanItem("a1", "filesystem.create_dir", {"path": "one"}, depends_on=("a2",)),
+        ActionPlanItem("a2", "filesystem.create_dir", {"path": "two"}, depends_on=("a1",)),
+    ),
+)
+
+executor.validate_plan(bad_plan)
+```
+
+This raises `ValueError` because circular dependencies are rejected before execution.
+
+### Testing commands
+
+From the project root in PowerShell:
+
+```powershell
+python -m pytest tests/unit/test_plan_executor.py -q
+python -m pytest -q
+```
+
+The first command checks the plan executor regression tests; the second runs the full project suite.
+
+## Phase 4 inspection commands
+
+These commands inspect the active runtime. They do not change permissions or configuration.
+
+### Show help
+
+Syntax:
+
+```text
+help
+```
+
+Expected behavior: displays the concise list of action, plan, inspection, and exit commands.
+
+### Show configuration summary
+
+Syntax:
+
+```text
+show config
+```
+
+Expected behavior: displays enabled capability count, whether a workspace is configured, resource-policy mode, modify-policy state, and registered application count. Sensitive executable paths are not displayed.
+
+### Show resources
+
+Syntax:
+
+```text
+show resources
+```
+
+Expected behavior: displays configured resource names for each requester. Resource paths are reduced to directory names in the CLI output.
+
+### Show permissions
+
+Syntax:
+
+```text
+show permissions
+```
+
+Expected behavior: displays the configured permission grants by requester.
+
+### Show capabilities
+
+Syntax:
+
+```text
+show capabilities
+```
+
+Expected behavior: displays each enabled capability's name, category, required permission, risk level, and rollback support using capability metadata.
+
+### Show registered applications
+
+Syntax:
+
+```text
+show apps
+```
+
+Expected behavior: displays registered application IDs only, such as `notepad` or `vscode`; executable paths are not exposed.
+
+### CLI error behavior
+
+Unknown commands display an error and suggest `help`. Expected action and plan failures display concise safe messages. Unexpected failures are logged internally and reported as a safe action failure. The CLI remains at the prompt after errors.
+
+### Audit context
+
+Normal plan actions are audited with `plan_id`, `action_id`, and `event_type=NORMAL_ACTION`. Compensating actions are audited with `event_type=ROLLBACK_ACTION`, the triggering action ID, the compensating capability, and `ROLLED_BACK` or `FAILED` status. Existing per-action audit records remain in place.
+
+## 13. Allowed CLI commands and examples
+
+The CLI currently supports the following command patterns. All requested actions still pass through the dispatcher, validator, policy, and audit flow before being executed.
+
+### Application commands
+
+#### Open a trusted application
+
+Syntax:
+
+```text
+open app <app_id>
+```
+
+Example:
+
+```text
+open app vscode
+```
+
+#### Check if a trusted application is running
+
+Syntax:
+
+```text
+is app running <app_id>
+```
+
+Example:
+
+```text
+is app running vscode
+```
+
+#### Get process info for a registered application
+
+Syntax:
+
+```text
+process info <app_id>
+```
+
+Example:
+
+```text
+process info vscode
+```
+
+### Filesystem commands
+
+#### Find a file within the configured sandbox
+
+Syntax:
+
+```text
+find file <filename>
+```
+
+Example:
+
+```text
+find file notes.pdf
+```
+
+#### Get metadata for a file
+
+Syntax:
+
+```text
+get file info <path>
+```
+
+Example:
+
+```text
+get file info docs\notes.pdf
+```
+
+#### Open an approved file
+
+Syntax:
+
+```text
+open file <path>
+```
+
+Example:
+
+```text
+open file docs\budget.pdf
+```
+
+#### Create a directory inside the allowed sandbox
+
+Syntax:
+
+```text
+create dir <path>
+```
+
+Example:
+
+```text
+create dir test_folder
+```
+
+#### Create an empty file inside the allowed sandbox
+
+Syntax:
+
+```text
+create file <path>
+```
+
+Example:
+
+```text
+create file docs\new_report.txt
+```
+
+#### Move a file within the allowed sandbox
+
+Syntax:
+
+```text
+move file <source_path> <destination_path>
+```
+
+Example:
+
+```text
+move file docs\old.txt docs\moved.txt
+```
+
+#### Copy a file within the allowed sandbox
+
+Syntax:
+
+```text
+copy file <source_path> <destination_path>
+```
+
+Example:
+
+```text
+copy file docs\draft.txt docs\draft_copy.txt
+```
+
+#### Rename a file inside the same allowed resource boundary
+
+Syntax:
+
+```text
+rename file <path> <new_name>
+```
+
+Example:
+
+```text
+rename file docs\draft_copy.txt final_draft.txt
+```
+
+### System commands
+
+#### List running application names
+
+Syntax:
+
+```text
+list running apps
+```
+
+Example:
+
+```text
+list running apps
+```
+
+#### Get CPU usage info
+
+Syntax:
+
+```text
+cpu usage
+```
+
+Example:
+
+```text
+cpu usage
+```
+
+#### Get memory usage info
+
+Syntax:
+
+```text
+memory usage
+```
+
+Example:
+
+```text
+memory usage
+```
+
+#### Get disk usage info
+
+Syntax:
+
+```text
+disk usage
+```
+
+Example:
+
+```text
+disk usage
+```
+
+#### Get battery status
+
+Syntax:
+
+```text
+battery status
+```
+
+Example:
+
+```text
+battery status
+```
+
+#### Get minimal system information
+
+Syntax:
+
+```text
+system info
+```
+
+Example:
+
+```text
+system info
+```
+
+### Exit commands
+
+```text
+exit
+```
+
+or
+
+```text
+quit
+```
+
+---
+
+These are the commands currently available in the ASTRA Sentinel CLI. Any command not listed here is rejected as an invalid or unknown action.
+
+---
+
+## 14. Phase 3 rollback and resource permissions
+
+### Execute a JSON plan
+
+Syntax:
+
+```text
+plan <json_object>
+```
+
+Example:
+
+```text
+plan {"plan_id":"demo","description":"Create a folder and file","failure_policy":"CONTINUE","rollback_on_failure":true,"actions":[{"action_id":"mkdir","capability":"filesystem.create_dir","parameters":{"path":"demo"}},{"action_id":"file","capability":"filesystem.create_file","parameters":{"path":"demo\\notes.txt"},"depends_on":["mkdir"]}]}
+```
+
+The CLI always sets the requester to `cli`. Each action must contain a unique `action_id` and a registered capability. The optional `depends_on` list controls execution order. `failure_policy` accepts `STOP` or `CONTINUE`; `rollback_on_failure` defaults to `false`.
+
+### Successful rollback example
+
+```text
+plan {"plan_id":"rollback-demo","description":"Create resources then trigger a failure","failure_policy":"CONTINUE","rollback_on_failure":true,"actions":[{"action_id":"dir","capability":"filesystem.create_dir","parameters":{"path":"rollback-demo"}},{"action_id":"file","capability":"filesystem.create_file","parameters":{"path":"rollback-demo\\item.txt"},"depends_on":["dir"]},{"action_id":"fail","capability":"filesystem.create_dir","parameters":{"path":"rollback-demo"}}]}
+```
+
+The response reports the original failed action and a `Rollback:` section. The file is removed before the directory, demonstrating reverse-order compensation.
+
+### Rollback failure example
+
+If a created directory is no longer empty, its rollback is refused and the response reports a failed rollback result. The original action failure remains unchanged; rollback does not conceal it.
+
+### Resource permissions
+
+Resource authorization is configured, not hardcoded in capabilities. `RuntimeConfig.resource_rules` maps a requester to allowed canonical directory roots:
+
+```python
+RuntimeConfig(
+    policy=policy,
+    enabled_capabilities=enabled,
+    allowed_filesystem_roots=(workspace,),
+    resource_rules={"cli": (workspace,)},
+)
+```
+
+Every filesystem resource is checked against these roots after capability and permission policy checks. Paths outside configured roots, missing requester rules, and uncertain path resolution fail closed. Explicit capability denial still takes precedence.
+
+### Phase 3 testing
+
+```powershell
+python -m pytest tests/unit/test_plan_executor.py -q
+python -m pytest -q
+```

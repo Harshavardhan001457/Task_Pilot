@@ -15,21 +15,36 @@ DEFAULT_PERMISSION_GRANTS = {
         Permission.SYSTEM_READ,
         Permission.APPLICATION_LAUNCH,
         Permission.FILESYSTEM_READ,
+        Permission.FILESYSTEM_WRITE,
+        Permission.FILESYSTEM_MOVE,
     }),
     "internal": frozenset({
         Permission.SYSTEM_READ,
         Permission.APPLICATION_LAUNCH,
         Permission.FILESYSTEM_READ,
+        Permission.FILESYSTEM_WRITE,
+        Permission.FILESYSTEM_MOVE,
     }),
 }
 
 DEFAULT_ENABLED_CAPABILITIES = frozenset({
     "application.open_app",
     "application.is_app_running",
+    "application.get_process_info",
     "filesystem.find_file",
     "filesystem.get_file_info",
     "filesystem.open_file",
     "filesystem.create_dir",
+    "filesystem.create_file",
+    "filesystem.move_file",
+    "filesystem.copy_file",
+    "filesystem.rename_file",
+    "system.get_cpu_usage",
+    "system.get_memory_usage",
+    "system.get_disk_usage",
+    "system.get_battery_status",
+    "system.get_system_info",
+    "system.list_running_apps",
 })
 
 DEFAULT_ALLOWED_APPLICATIONS: dict[str, str] = {

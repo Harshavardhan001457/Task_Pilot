@@ -26,24 +26,30 @@ class _RegisteredApplication:
 
 class OpenApp(_RegisteredApplication):
     metadata = CapabilityMetadata("application.open_app", "Launch a registered application.", "1.0", {"app": str}, frozenset({Permission.APPLICATION_LAUNCH}), RiskLevel.LOW)
+
     def __init__(self, applications: dict[str, ApplicationConfig], launcher: Callable[[Path], None] | None = None, running: Callable[[str], bool] | None = None) -> None:
         super().__init__(applications)
         self._launcher = launcher or self._native_launch
         self._running = running or self._native_is_running
         self._last_process: str | None = None
+
     def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         self._application(parameters["app"])
         return dict(parameters)
+
     def execute(self, parameters: dict[str, Any]) -> dict[str, Any]:
         app = self._application(parameters["app"])
         self._launcher(app.executable)
         self._last_process = app.process_name
         return {"app": parameters["app"]}
+
     def verify(self, parameters: dict[str, Any], data: dict[str, Any]) -> bool:
         return self._last_process is not None and self._running(self._last_process)
+
     @staticmethod
     def _native_launch(executable: Path) -> None:
         subprocess.Popen([str(executable)], shell=False, close_fds=True)
+
     @staticmethod
     def _native_is_running(process_name: str) -> bool:
         if os.name != "nt":
@@ -54,13 +60,75 @@ class OpenApp(_RegisteredApplication):
 
 class IsAppRunning(_RegisteredApplication):
     metadata = CapabilityMetadata("application.is_app_running", "Check a registered application process.", "1.0", {"app": str}, frozenset({Permission.SYSTEM_READ}), RiskLevel.READ_ONLY)
+
     def __init__(self, applications: dict[str, ApplicationConfig], running: Callable[[str], bool] | None = None) -> None:
         super().__init__(applications)
         self._running = running or OpenApp._native_is_running
+
     def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
         self._application(parameters["app"])
         return dict(parameters)
+
     def execute(self, parameters: dict[str, Any]) -> dict[str, Any]:
         return {"app": parameters["app"], "running": self._running(self._application(parameters["app"]).process_name)}
+
     def verify(self, parameters: dict[str, Any], data: dict[str, Any]) -> bool:
         return data["app"] == parameters["app"] and isinstance(data["running"], bool)
+
+
+class ListRunningApps(_RegisteredApplication):
+    metadata = CapabilityMetadata("system.list_running_apps", "Return a concise list of running app names.", "1.0", {}, frozenset({Permission.SYSTEM_READ}), RiskLevel.READ_ONLY)
+
+    def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        return dict(parameters)
+
+    def execute(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        names: list[str] = []
+        try:
+            completed = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], shell=False, check=False, capture_output=True, text=True)
+        except OSError:
+            completed = subprocess.run(["ps", "-eo", "comm="], shell=False, check=False, capture_output=True, text=True)
+        for line in completed.stdout.splitlines():
+            item = line.strip().strip('"')
+            if not item:
+                continue
+            if "," in item:
+                item = item.split(",", 1)[0].strip('"')
+            if item and item not in names:
+                names.append(item)
+        return {"apps": names[:25]}
+
+    def verify(self, parameters: dict[str, Any], data: dict[str, Any]) -> bool:
+        return isinstance(data.get("apps"), list)
+
+
+class GetProcessInfo(_RegisteredApplication):
+    metadata = CapabilityMetadata("application.get_process_info", "Return safe process metadata for a registered application.", "1.0", {"app": str}, frozenset({Permission.SYSTEM_READ}), RiskLevel.READ_ONLY)
+
+    def __init__(self, applications: dict[str, ApplicationConfig], running: Callable[[str], bool] | None = None) -> None:
+        super().__init__(applications)
+        self._running = running or OpenApp._native_is_running
+
+    def validate_parameters(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        app = self._application(parameters["app"])
+        if not app.process_name:
+            raise RequestValidationError("registered application has no process name")
+        return dict(parameters)
+
+    def execute(self, parameters: dict[str, Any]) -> dict[str, Any]:
+        app = self._application(parameters["app"])
+        info = {"app": parameters["app"], "name": app.process_name, "running": self._running(app.process_name)}
+        if os.name == "nt":
+            try:
+                completed = subprocess.run(["wmic", "process", "where", f"name='{app.process_name}'", "get", "processid, name"], shell=False, check=False, capture_output=True, text=True)
+                lines = [line.strip() for line in completed.stdout.splitlines() if line.strip() and not line.lower().startswith("name")]
+                if lines:
+                    first = lines[0].split()
+                    if first:
+                        info["pid"] = int(first[0])
+            except Exception:
+                pass
+        return info
+
+    def verify(self, parameters: dict[str, Any], data: dict[str, Any]) -> bool:
+        return data["app"] == parameters["app"] and isinstance(data.get("running"), bool)
