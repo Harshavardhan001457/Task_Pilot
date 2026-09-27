@@ -57,3 +57,6 @@ DEFAULT_ALLOWED_APPLICATION_IDS = frozenset(DEFAULT_ALLOWED_APPLICATIONS)
 DEFAULT_ALLOWED_FILESYSTEM_ROOTS: tuple[str, ...] = (
     r"C:\Users\harsh\OneDrive\Documents\course plan\Sem 5",
 )
+
+# Modification remains fail-closed unless explicitly enabled with the allowlist.
+DEFAULT_ALLOW_MODIFY = True

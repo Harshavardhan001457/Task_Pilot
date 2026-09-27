@@ -75,7 +75,7 @@ Filesystem access is restricted to configured roots. Resource rules can further 
 Set an existing workspace, then start the local CLI:
 
 ```powershell
-$env:ASTRA_WORKSPACE = "C:\path\to\workspace"
+Configure an existing allowed filesystem root in `astra_sentinel/config/allowlist.py`.
 python main.py
 ```
 

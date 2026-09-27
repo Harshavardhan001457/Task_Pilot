@@ -37,6 +37,8 @@ class Goal:
 class Planner:
     """Builds V2 ``ActionPlan`` objects without dispatching or executing them."""
 
+    supported_goal_types = ("create_directory", "create_project")
+
     def __init__(self, registry: CapabilityRegistry) -> None:
         self._registry = registry
 

@@ -8,6 +8,7 @@ from astra_sentinel.core.dispatcher import Dispatcher
 from astra_sentinel.core.models import ActionRequest, ActionResult, ResultStatus
 from astra_sentinel.core.plan import ActionPlan, ActionPlanItem, PlanExecutor, PlanResult
 from astra_sentinel.core.planner import Goal, Planner, PlanningError
+from astra_sentinel.llm import InterpretationStatus, LLMGoalService, LLMOutputError, LLMProviderError, LLMSettings, create_provider
 
 INVALID_COMMAND = "cli.invalid_command"
 LOGGER = logging.getLogger(__name__)
@@ -123,7 +124,7 @@ def format_result(request: ActionRequest, result: ActionResult) -> str:
 def _format_inspection(command: str, dispatcher: Dispatcher) -> str:
     config = dispatcher.config
     if command == "help":
-        return "Available commands:\n  help\n  plan <json>\n  goal <json>\n  inspect\n  execute\n  show config\n  show resources\n  show permissions\n  show capabilities\n  show apps\n  exit / quit\n\nUse goal to create a pending plan, inspect to review it, and execute to submit it through Sentinel."
+        return "Available commands:\n  help\n  plan <json>\n  goal <json>\n  ask <natural-language request>\n  inspect\n  execute\n  show config\n  show resources\n  show permissions\n  show capabilities\n  show apps\n  exit / quit\n\nUse goal or ask to create a pending plan, inspect to review it, and execute to submit it through Sentinel."
     if command == "show capabilities":
         lines = []
         for name in dispatcher.registry.list_names():
@@ -228,6 +229,21 @@ def run_cli(
                 output_fn(planner.inspect_plan(pending_plan))
             except (KeyError, TypeError, ValueError, json.JSONDecodeError, PlanningError) as error:
                 output_fn(f"[ERROR] Invalid goal: {error}")
+            continue
+        if command.casefold().startswith("ask "):
+            try:
+                service = LLMGoalService(create_provider(LLMSettings.from_environment()), planner.supported_goal_types)
+                interpretation = service.interpret(command[4:].strip(), requester="cli")
+                if interpretation.status is InterpretationStatus.NEEDS_CLARIFICATION:
+                    output_fn("[CLARIFICATION] Missing: " + ", ".join(interpretation.missing))
+                elif interpretation.status is InterpretationStatus.UNSUPPORTED:
+                    output_fn("[UNSUPPORTED] " + interpretation.message)
+                else:
+                    pending_plan = planner.create_plan(interpretation.goal)
+                    output_fn("Structured goal: " + str(interpretation.goal))
+                    output_fn(planner.inspect_plan(pending_plan))
+            except (LLMProviderError, LLMOutputError, PlanningError) as error:
+                output_fn(f"[ERROR] Natural-language planning unavailable: {error}")
             continue
         if command.strip().casefold() == "inspect":
             output_fn(planner.inspect_plan(pending_plan) if pending_plan else "[ERROR] No pending plan.")

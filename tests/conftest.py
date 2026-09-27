@@ -1,4 +1,5 @@
 import pytest
+import astra_sentinel.config as config_module
 
 from astra_sentinel.audit.logger import InMemoryAuditLogger
 from astra_sentinel.capabilities.mock import MockCreateDir, MockEcho, MockOpenApp, MockOpenFile
@@ -12,6 +13,15 @@ from astra_sentinel.security.policy import PolicyEngine
 @pytest.fixture
 def runtime():
     return mock_runtime()
+
+
+@pytest.fixture(autouse=True)
+def temporary_allowlisted_root(request, monkeypatch):
+    """Tests with temporary roots exercise the standard allowlist configuration."""
+    if "tmp_path" in request.fixturenames:
+        root = request.getfixturevalue("tmp_path")
+        monkeypatch.setattr(config_module, "DEFAULT_ALLOWED_FILESYSTEM_ROOTS", (str(root),))
+        monkeypatch.setattr(config_module, "DEFAULT_ALLOW_MODIFY", True)
 
 
 def mock_runtime(config: RuntimeConfig | None = None):

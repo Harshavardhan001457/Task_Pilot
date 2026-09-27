@@ -66,15 +66,14 @@ def test_outside_paths_and_traversal_are_rejected(tmp_path, capability, paramete
 
 def test_create_directory_is_sandboxed_and_policy_can_prevent_execution(tmp_path):
     dispatcher = real_dispatcher(tmp_path)
-    assert dispatcher.dispatch(request("filesystem.create_dir", {"path": "ASTRA_Test"})).status is ResultStatus.SUCCESS
-    assert (tmp_path / "ASTRA_Test").is_dir()
+    assert dispatcher.dispatch(request("filesystem.create_dir", {"path": "sample_dir"})).status is ResultStatus.SUCCESS
+    assert (tmp_path / "sample_dir").is_dir()
     denied = real_dispatcher(tmp_path, allow_modify=False)
     assert denied.dispatch(request("filesystem.create_dir", {"path": "must-not-exist"})).status is ResultStatus.DENIED
     assert not (tmp_path / "must-not-exist").exists()
 
 
 def test_default_runtime_allows_sandboxed_file_writes_when_workspace_is_configured(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     config = default_config()
     assert config.policy.allow_modify is True
     dispatcher, _ = build_default_runtime(config)

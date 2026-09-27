@@ -8,7 +8,6 @@ from astra_sentinel.core.registry import CapabilityRegistry
 
 
 def test_planner_creates_directory_plan_without_executing(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
 
     plan = Planner(dispatcher.registry).create_plan(Goal("create_directory", {"path": "project"}))
@@ -20,7 +19,6 @@ def test_planner_creates_directory_plan_without_executing(tmp_path, monkeypatch)
 
 
 def test_planner_creates_project_and_readme_with_dependency(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
 
     plan = Planner(dispatcher.registry).create_plan(Goal("create_project", {"path": "project", "readme": True}))
@@ -32,7 +30,6 @@ def test_planner_creates_project_and_readme_with_dependency(tmp_path, monkeypatc
 
 
 def test_planner_rejects_unknown_goal(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
 
     with pytest.raises(PlanningError, match="unsupported goal"):
@@ -41,7 +38,6 @@ def test_planner_rejects_unknown_goal(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("parameters", [{}, {"path": 1}, {"path": "../outside"}])
 def test_planner_rejects_missing_or_invalid_parameters(tmp_path, monkeypatch, parameters):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
 
     with pytest.raises(PlanningError):
@@ -54,7 +50,6 @@ def test_planner_rejects_unavailable_mapped_capability():
 
 
 def test_plan_structure_rejects_invalid_dependencies(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
 
     for actions, error in (
@@ -73,7 +68,6 @@ def test_plan_structure_rejects_invalid_dependencies(tmp_path, monkeypatch):
 
 
 def test_planning_same_goal_is_logically_deterministic(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     planner = Planner(dispatcher.registry)
 

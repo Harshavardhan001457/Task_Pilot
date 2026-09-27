@@ -8,7 +8,6 @@ from astra_sentinel.core.plan import ActionPlan, ActionPlanItem, PlanExecutor, P
 
 
 def test_generated_plan_is_inspected_then_executed_through_sentinel(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, audit = build_default_runtime(default_config())
     planner = Planner(dispatcher.registry)
     plan = planner.create_plan(Goal("create_project", {"path": "project", "readme": True}, requester="cli"))
@@ -29,7 +28,6 @@ def test_generated_plan_is_inspected_then_executed_through_sentinel(tmp_path, mo
 
 
 def test_generated_plan_is_denied_by_existing_resource_policy(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     permitted = tmp_path / "permitted"
     permitted.mkdir()
     config = default_config()
@@ -45,7 +43,6 @@ def test_generated_plan_is_denied_by_existing_resource_policy(tmp_path, monkeypa
 
 
 def test_generated_plan_obeys_existing_confirmation_requirement(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     capability = dispatcher.registry.get("filesystem.create_dir")
     capability.metadata = replace(capability.metadata, confirmation_required=True)
@@ -58,7 +55,6 @@ def test_generated_plan_obeys_existing_confirmation_requirement(tmp_path, monkey
 
 
 def test_manual_and_generated_plans_use_the_same_executor_pipeline(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, audit = build_default_runtime(default_config())
     generated = Planner(dispatcher.registry).create_plan(Goal("create_directory", {"path": "generated"}, requester="cli"))
     manual = ActionPlan(
@@ -78,7 +74,6 @@ def test_manual_and_generated_plans_use_the_same_executor_pipeline(tmp_path, mon
 
 
 def test_cli_goal_inspect_execute_flow_is_explicit(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     config = default_config()
     config = replace(config, policy=replace(config.policy, trusted_requesters=frozenset({"cli"})))
     dispatcher, _ = build_default_runtime(config)

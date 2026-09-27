@@ -9,7 +9,6 @@ from astra_sentinel.core.plan import ActionPlan, ActionPlanItem, PlanExecutor, P
 
 
 def test_plan_executor_runs_dependent_actions_and_skips_on_failure(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     executor = PlanExecutor(dispatcher)
 
@@ -34,7 +33,6 @@ def test_plan_executor_runs_dependent_actions_and_skips_on_failure(tmp_path, mon
 
 
 def test_plan_executor_rejects_circular_dependencies(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     executor = PlanExecutor(dispatcher)
 
@@ -54,7 +52,6 @@ def test_plan_executor_rejects_circular_dependencies(tmp_path, monkeypatch):
 
 
 def test_invalid_plan_returns_structured_failure(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     result = PlanExecutor(dispatcher).execute(ActionPlan(
         plan_id="invalid",
@@ -67,7 +64,6 @@ def test_invalid_plan_returns_structured_failure(tmp_path, monkeypatch):
 
 
 def test_rollback_runs_in_reverse_order_for_created_file_and_directory(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     result = PlanExecutor(dispatcher).execute(ActionPlan(
         plan_id="rollback",
@@ -88,7 +84,6 @@ def test_rollback_runs_in_reverse_order_for_created_file_and_directory(tmp_path,
 
 
 def test_cli_returns_to_prompt_after_invalid_plan(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     commands = iter(['plan {"plan_id":"bad","description":"bad","actions":[{"action_id":"a1","capability":"unknown"}]}', "exit"])
     output: list[str] = []
@@ -97,7 +92,6 @@ def test_cli_returns_to_prompt_after_invalid_plan(tmp_path, monkeypatch):
 
 
 def test_resource_rules_allow_configured_root_and_deny_other_root(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_WORKSPACE", str(tmp_path))
     allowed = tmp_path / "allowed"
     allowed.mkdir()
     config = default_config()
@@ -120,7 +114,6 @@ def test_resource_rules_allow_configured_root_and_deny_other_root(tmp_path, monk
 
 
 def test_plan_and_rollback_audit_include_context(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_", str(tmp_path))
     dispatcher, audit = build_default_runtime(default_config())
     result = PlanExecutor(dispatcher).execute(ActionPlan(
         plan_id="audit-plan",
@@ -139,7 +132,6 @@ def test_plan_and_rollback_audit_include_context(tmp_path, monkeypatch):
 
 
 def test_cli_inspection_commands(tmp_path, monkeypatch):
-    monkeypatch.setenv("ASTRA_", str(tmp_path))
     dispatcher, _ = build_default_runtime(default_config())
     commands = iter(["help", "show capabilities", "show permissions", "show resources", "show config", "show apps", "exit"])
     output: list[str] = []
