@@ -1,10 +1,10 @@
 """Safe, explicit runtime configuration."""
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
 from astra_sentinel.config.allowlist import (
     DEFAULT_ALLOWED_APPLICATIONS,
+    DEFAULT_ALLOW_MODIFY,
     DEFAULT_ALLOWED_FILESYSTEM_ROOTS,
     DEFAULT_ENABLED_CAPABILITIES,
     DEFAULT_PERMISSION_GRANTS,
@@ -20,6 +20,7 @@ class RuntimeConfig:
     allowed_filesystem_roots: tuple[Path, ...] = ()
     registered_applications: dict[str, "ApplicationConfig"] | None = None
     audit_backend: str = "memory"
+    resource_rules: dict[str, tuple[Path, ...]] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,14 +32,9 @@ class ApplicationConfig:
 
 def default_config() -> RuntimeConfig:
     grants = PermissionGrants(DEFAULT_PERMISSION_GRANTS)
-    roots: tuple[Path, ...] = ()
-
-    workspace = os.environ.get("ASTRA_WORKSPACE")
-    candidate_roots = [Path(workspace)] if workspace else []
-    candidate_roots.extend(Path(root) for root in DEFAULT_ALLOWED_FILESYSTEM_ROOTS)
-
     valid_roots: list[Path] = []
-    for candidate in candidate_roots:
+    for configured_root in DEFAULT_ALLOWED_FILESYSTEM_ROOTS:
+        candidate = Path(configured_root)
         try:
             resolved = candidate.resolve(strict=True)
         except (OSError, RuntimeError):
@@ -46,8 +42,7 @@ def default_config() -> RuntimeConfig:
         if resolved.is_dir() and resolved not in valid_roots:
             valid_roots.append(resolved)
 
-    if valid_roots:
-        roots = tuple(valid_roots)
+    roots = tuple(valid_roots)
 
     applications: dict[str, ApplicationConfig] = {}
     for app_id, executable_path in DEFAULT_ALLOWED_APPLICATIONS.items():
@@ -55,9 +50,11 @@ def default_config() -> RuntimeConfig:
         if executable.is_file():
             applications[app_id] = ApplicationConfig(executable.resolve(), executable.name)
 
+    resource_rules = {requester: roots for requester in ("cli", "internal")}
     return RuntimeConfig(
-        PolicyConfig(frozenset({"cli", "internal"}), grants, allow_modify=False),
+        PolicyConfig(frozenset({"cli", "internal"}), grants, allow_modify=DEFAULT_ALLOW_MODIFY),
         DEFAULT_ENABLED_CAPABILITIES,
         roots,
         applications,
+        resource_rules=resource_rules,
     )

@@ -7,6 +7,7 @@ class Permission(StrEnum):
     SYSTEM_READ = "system.read"
     FILESYSTEM_READ = "filesystem.read"
     FILESYSTEM_WRITE = "filesystem.write"
+    FILESYSTEM_MOVE = "filesystem.move"
     FILESYSTEM_DELETE = "filesystem.delete"
     APPLICATION_LAUNCH = "application.launch"
     APPLICATION_CONTROL = "application.control"

@@ -16,6 +16,11 @@ class AuditEvent:
     execution_status: str
     verification_status: str | None
     error_code: str | None
+    plan_id: str | None = None
+    action_id: str | None = None
+    event_type: str = "NORMAL_ACTION"
+    rollback_action: str | None = None
+    rollback_status: str | None = None
 
 
 class AuditLogger(Protocol):
